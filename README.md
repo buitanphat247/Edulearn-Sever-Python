@@ -1,99 +1,128 @@
 # EduLearn AI Python Server 🚀
 
 ## 📌 Tổng quan dự án (Project Overview)
-**EduLearn AI Python Server** là hạ tầng Backend chuyên biệt xử lý các tác vụ AI phức tạp cho hệ sinh thái EduLearn. Server được xây dựng trên ngôn ngữ Python (Flask) để tận dụng tối đa các thư viện xử lý ngôn ngữ tự nhiên (NLP), OCR và LLM.
-
-Các nhiệm vụ chính:
-1.  **AI Exam Generation (RAG):** Tự động tạo đề thi trắc nghiệm từ tài liệu người dùng tải lên.
-2.  **Intelligent Writing Chatbot:** Gia sư AI hỗ trợ học sinh luyện tập kỹ năng viết qua hội thoại tương tác.
-3.  **Digital Document Processing:** Chuyển đổi tài liệu Word (.docx) sang định dạng JSON/LaTeX chất lượng cao.
-4.  **Real-time Anti-cheat System:** Hệ thống giám sát thi cử qua Socket.IO.
+**EduLearn AI Python Server** là hạ tầng Backend chuyên biệt xử lý các tác vụ AI phức tạp cho hệ sinh thái EduLearn. Server được xây dựng trên Flask, đóng vai trò là "bộ não" AI, xử lý các tác vụ nặng về tính toán mà Server NestJS chính không đảm nhận.
 
 ---
 
-## 🛠 Pipeline & Quy trình thực hiện (System Pipeline)
+## 🛠 Luồng hoạt động chính (Core Activity Flows)
 
-### 1. Luồng tạo đề thi AI (RAG Pipeline)
-*   **Bước 1 (Extraction):** Trích xuất văn bản từ file `.docx` hoặc `.pdf`.
-*   **Bước 2 (Splitting):** Chia nhỏ văn bản thành các *Semantic Chunks* (đoạn nhỏ có nghĩa).
-*   **Bước 3 (Indexing):** Lưu trữ các đoạn văn bản vào cơ sở dữ liệu (Database-based Indexing).
-*   **Bước 4 (Retrieval):** Tìm kiếm các đoạn văn bản liên quan nhất dựa trên yêu cầu đề thi (chủ đề, độ khó).
-*   **Bước 5 (LLM Processing):** Gửi context thu thập được cho mô hình LLM (GPT-4o/Ollama) để tạo câu hỏi trắc nghiệm, đáp án và giải thích chi tiết.
+### 1. Quy trình tạo đề thi AI (RAG Pipeline)
+Hệ thống sử dụng kỹ thuật **Retrieval-Augmented Generation (RAG)** để đảm bảo đề thi bám sát nội dung tài liệu của giáo viên.
 
-### 2. Luồng số hóa tài liệu (Digitization Pipeline)
-*   **Word to Structure:** Phân tích cấu trúc file Word (Headings, Tables, Lists).
-*   **AI-OCR:** Sử dụng mô hình AI nhận diện công thức toán học (LaTeX) và các bảng lồng nhau.
-*   **Media Management:** Tự động tách hình ảnh, đẩy lên Cloudflare R2 và thay thế bằng URL công khai.
-*   **Final Output:** Xuất ra file JSON chuẩn để đẩy vào hệ thống CMS của NestJS.
+```mermaid
+sequenceDiagram
+    participant T as Giáo viên
+    participant P as Python Server
+    participant DB as MySQL Database
+    participant AI as OpenAI/LLM
+    
+    T->>P: Tải file .docx/.pdf
+    P->>P: Trích xuất văn bản (Text Extraction)
+    P->>P: Chia nhỏ văn bản (Semantic Chunking)
+    P->>DB: Lưu các Chunks vào RagChunk
+    T->>P: Yêu cầu tạo đề (Topic, Độ khó, Số câu)
+    P->>DB: Tìm kiếm văn bản liên quan (Retrieval)
+    DB-->>P: Danh sách Chunks phù hợp
+    P->>AI: Gửi Context + Prompt tạo câu hỏi
+    AI-->>P: Trả về JSON (Questions, Answers, Explanations)
+    P->>DB: Lưu vào RagQuestion & RagTest
+    P-->>T: Trả về ID đề thi hoàn chỉnh
+```
+
+### 2. Hệ thống giám sát thi cử Real-time (Anti-Cheat)
+Sử dụng **Socket.IO** để duy trì kết nối liên tục giữa Client và Server nhằm phát hiện gian lận ngay lập tức.
+
+```mermaid
+sequenceDiagram
+    participant S as Học sinh
+    participant P as Python Server
+    participant DB as MySQL Database
+    
+    S->>P: Start Attempt (HTTP POST)
+    P->>DB: Kiểm tra max_attempts & Init phiên
+    P-->>S: OK + attempt_id
+    S->>P: Kết nối Socket (Join Room: attempt_id)
+    Note over S,P: Quá trình làm bài
+    S->>P: Phát hiện Chuyển tab / Thoát Fullscreen (Socket Event)
+    P->>DB: Ghi log vi phạm vào RagTestAttemptSecurity
+    S->>P: Submit bài thi (HTTP POST)
+    P->>DB: Tính điểm & Đóng phiên làm bài
+    P-->>S: Kết quả cuối cùng
+```
+
+### 3. Số hóa tài liệu Word (Digitalization)
+Quy trình chuyển đổi tài liệu thô sang cấu hình hệ thống (Structured Data).
+
+```mermaid
+sequenceDiagram
+    participant A as Admin
+    participant P as Python Server
+    participant R2 as Cloudflare R2
+    
+    A->>P: Gửi file Word phức tạp (Toán, Hình ảnh, Bảng)
+    P->>P: Phân tích cấu trúc (AST Parsing)
+    P->>P: Trích xuất hình ảnh (Media Extraction)
+    P->>R2: Upload ảnh lên Cloud Storage
+    R2-->>P: URL ảnh công khai
+    P->>P: AI-OCR nhận diện công thức Toán (LaTeX)
+    P->>P: Chuyển đổi định dạng bảng lồng nhau
+    P-->>A: Trả về JSON Schema chuẩn 100%
+```
 
 ---
 
-## 🛡 Bảo mật chi tiết (Security Architecture)
+## 🛡 Kiến trúc Bảo mật chi tiết (Security Deep-Dive)
 
-Dự án được thiết kế với nhiều tầng bảo mật để đảm bảo an toàn dữ liệu và tính minh bạch trong thi cử:
+### 1. Tầng Giao thức (Protocol Level)
+*   **Secure Filename:** Sử dụng `werkzeug.utils.secure_filename` để ngăn chặn tấn công chèn mã lệnh qua tên file.
+*   **CORS Management:** Chỉ cho phép các Domain được cấu hình trong `CORS_ORIGINS` truy cập vào tài nguyên AI nhạy cảm.
 
-### A. Bảo mật API & Dữ liệu
-*   **Sanitization:** Tất cả file tải lên được kiểm tra định dạng nghiêm ngặt và xử lý tên file qua `secure_filename` để chống tấn công **Path Traversal**.
-*   **SQL Injection Prevention:** Sử dụng parameterized queries cho tất cả các tương tác với MySQL qua lớp `DatabaseService`.
-*   **Environment Isolation:** Toàn bộ thông tin nhạy cảm (API Key, DB Credential, R2 Token) được lưu trữ trong `.env` và không bao giờ hard-code.
+### 2. Tầng Ứng dụng (Application Level)
+*   **Transaction Integrity:** Các thao tác tạo đề thi phức tạp được bao bọc trong Transaction. Nếu AI lỗi giữa chừng, hệ thống tự động Rollback dữ liệu trong Database.
+*   **Rate Limiting:** (Thiết kế dựa trên khả năng chịu tải của API LLM) Ngăn chặn việc spam yêu cầu tạo nội dung AI liên tục làm cạn kiệt Token.
 
-### B. Bảo mật thi cử (Anti-Cheat Security)
-*   **Unique Session ID:** Mỗi lượt làm bài thi được cấp một `attempt_id` duy nhất. Các sự kiện Socket.IO bắt buộc phải đính kèm ID này để xác thực.
-*   **Event Logging:** Hệ thống ghi lại mọi hành vi bất thường:
-    *   `tab_hidden`: Chuyển tab hoặc rời trình duyệt.
-    *   `reload`: Tải lại trang bài làm.
-    *   `disconnect`: Mất kết nối mạng.
-*   **Server-side Timing:** Thời gian làm bài được quản lý tại Server. Khi hết giờ, Server sẽ tự động đóng kết nối và force-submit bài làm để tránh học sinh gian lận thời gian.
+### 3. Tầng Dữ liệu & AI (Data & AI Security)
+*   **SQL Parameterization:** Tuyệt đối không cộng chuỗi SQL. Mọi thao tác đều qua `DatabaseService` với placeholder `%s`.
+*   **Prompt Shielding:** Các Prompt gửi lên AI được thiết kế để "Grounding" (ép AI chỉ trả về nội dung dựa trên tài liệu đã có), hạn chế tình trạng AI bị dắt mũi (Hallucination).
 
 ---
 
-## 📄 Danh mục API Chi tiết (Detailed API Reference)
+## 📄 Danh mục API trọng tâm (Key API Reference)
 
-Hệ thống cung cấp tài liệu Swagger (Flasgger) chi tiết tại `/docs`. Dưới đây là mô tả các module chính:
-
-### 1. AI Exam Management (`/api/ai-exam`)
-*   `POST /create_test`: Nhận tài liệu và cấu hình để tạo đề thi hoàn chỉnh qua RAG.
-*   `GET /tests/class/<class_id>`: Lấy danh sách đề thi của một lớp học, tích hợp thông tin lượt làm bài của học sinh.
-*   `GET /test/<test_id>`: Lấy chi tiết đề thi gồm danh sách câu hỏi và cấu hình giới hạn thời gian.
-
-### 2. Exam Attempt & Security (`/api/exams/attempt`)
-*   `POST /start`: Khởi tạo phiên làm bài mới, kiểm tra giới hạn lượt làm bài (`max_attempts`).
-*   `POST /submit`: Nộp bài, chấm điểm tự động và đóng phiên làm bài.
-*   **Socket.IO Events:**
-    *   `client_log_event`: Nhận và lưu trữ nhật ký vi phạm từ Client.
-
-### 3. Writing AI Tutor (`/api/writing-chat-bot`)
-*   `POST /generate`: Tạo nội dung luyện viết (Dialogue/Essay) bằng AI dựa trên CEFR Level (1-5).
-*   `GET /topics`: Trả về danh sách chủ đề luyện tập đa dạng (IELTS, Business, General).
-*   `PUT /history/<id>/index`: Lưu vạch tiến độ (checkpoint) của học sinh trong phiên luyện tập.
-
-### 4. Digital Document (`/api/digital-document`)
-*   `POST /process`: Endpoint xử lý nặng nhất, thực hiện chuyển đổi Word sang JSON/LaTeX và quản lý media.
+| Endpoint | Method | Chức năng | Security |
+| :--- | :--- | :--- | :--- |
+| `/ai-exam/create_test` | POST | Tạo đề thi từ tài liệu (RAG) | Validate Doc Extension |
+| `/exams/attempt/start` | POST | Kiểm tra lượt làm nốt/lượt mới | Check Max Attempts |
+| `/exams/attempt/log` | POST | Ghi nhật ký vi phạm bảo mật | ID Attempt Validation |
+| `/digital-document/process`| POST | Số hóa văn bản sang JSON/LaTeX | Secure IO + R2 Upload |
+| `/writing-chat-bot/generate`| POST | AI tạo hội thoại luyện viết | CEFR Level Validation |
 
 ---
 
-## ⚙️ Hướng dẫn cài đặt (Setup Guide)
+## ⚙️ Hướng dẫn cài đặt & Chạy (Quick Start)
 
-1.  **Cài đặt môi trường:**
+1.  **Clone & Venv:**
     ```bash
+    git clone ...
+    cd Edu_Learn_Python_Sever
     python -m venv venv
     source venv/bin/activate
+    ```
+2.  **Cài đặt Dependencies:**
+    ```bash
     pip install -r requirements.txt
     ```
-2.  **Cấu hình biến môi trường (`.env`):**
-    ```env
-    PORT=5000
-    OPENAI_API_KEY=your_key_here
-    DB_MYSQL_HOST=localhost
-    DB_MYSQL_USER=root
-    DB_MYSQL_PASS=123456
-    CLOUDFLARE_R2_BUCKET=...
-    ```
-3.  **Khởi chạy:**
+3.  **Cấu hình Environment:**
+    Copy file `.env.example` thành `.env` và điền đủ thông tin:
+    *   `PORT=5000`
+    *   `OPENAI_API_KEY`: Key cho GPT-4o.
+    *   `CLIENT_API_URL`: URL Server NestJS để đồng bộ dữ liệu.
+4.  **Khởi chạy:**
     ```bash
     python main.py
     ```
 
 ---
 
-*Tài liệu được biên soạn bởi Antigravity AI cho dự án EduLearn.*
+*Biên soạn bởi Antigravity AI - System Architecture Division.*
