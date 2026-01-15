@@ -273,6 +273,7 @@ class DocumentService:
             "is_published": bool(row[7]),
             "mode": row[8],
             "document_id": row[9],
+            "max_attempts": row[10], # Thêm trường này
             "questions": []
         }
 

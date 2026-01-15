@@ -369,10 +369,11 @@ class ExamService:
         query = """
             SELECT a.id, a.student_id, u.fullname, a.status, a.score, a.started_at, a.submitted_at, 
                    s.reload_count, s.tab_hidden_count, s.disconnect_count, s.violation_logs,
-                   a.answers
+                   a.answers, ts.attempt_count
             FROM RagTestAttempt a
             JOIN users u ON a.student_id = u.user_id
             LEFT JOIN RagTestAttemptSecurity s ON a.id = s.attempt_id
+            LEFT JOIN RagTestStatus ts ON a.rag_test_id = ts.rag_test_id AND a.student_id = ts.student_id
             WHERE a.rag_test_id = %s
             ORDER BY a.started_at DESC
         """
@@ -389,6 +390,7 @@ class ExamService:
                 "started_at": row[5].isoformat() if row[5] else None,
                 "submitted_at": row[6].isoformat() if row[6] else None,
                 "answered_count": len(answers),
+                "attempt_count": row[12] or 1, # Thêm trường này, mặc định là 1 nếu chưa có trong Status
                 "security": {
                     "reload": row[7] or 0,
                     "tab_hidden": row[8] or 0,

@@ -16,10 +16,12 @@ def get_question_service():
 @question_controller.route('/create_test', methods=['POST'])
 def create_test_endpoint():
     """
-    Create a Full Test (Exam) with scoring and metadata
+    Create a Full Test (Exam) with scoring and metadata using AI
     ---
     tags:
       - AI Exam Generation
+    summary: "Generate an AI-powered exam from a file or text description"
+    description: "Accepts a document file (PDF/DOCX) or a text description to generate a full set of questions using RAG (Retrieval-Augmented Generation). Supports multiple AI modes."
     consumes:
       - multipart/form-data
     parameters:
@@ -27,31 +29,31 @@ def create_test_endpoint():
         in: formData
         type: file
         required: false
-        description: Optional. Upload Document (PDF, DOCX) or leave empty to use Description.
+        description: "Upload Document (PDF, DOCX). If provided, AI will analyze this file to generate questions."
       - name: title
         in: formData
         type: string
         required: true
-        description: Title of the Test
+        description: "Title of the Test (e.g., 'Final Exam: Python Basics')"
       - name: description
         in: formData
         type: string
-        description: Description or Instruction for the Test
+        description: "Text description or instruction. Can be used instead of or alongside a file."
       - name: duration_minutes
         in: formData
         type: integer
         default: 45
-        description: Duration in minutes
+        description: "Time limit for the test in minutes"
       - name: total_score
         in: formData
         type: integer
         default: 10
-        description: Total score for the test
+        description: "Maximum score for the entire test"
       - name: num_questions
         in: formData
         type: integer
         default: 10
-        description: Number of questions
+        description: "Target number of questions to generate"
       - name: difficulty
         in: formData
         type: string
@@ -62,32 +64,35 @@ def create_test_endpoint():
         type: string
         enum: ['llamaindex', 'offline', 'online']
         default: 'llamaindex'
-        description: Process Mode. Default 'llamaindex' (Smart AI).
+        description: "Process Mode. 'llamaindex' uses advanced RAG, 'offline' uses local LLM, 'online' uses OpenAI."
       - name: class_id
         in: formData
         type: integer
         required: false
-        description: ID of the class this test belongs to.
+        description: "Optional. ID of the class to assign this test to."
     responses:
       201:
-        description: Test created successfully
+        description: "Test created successfully"
         schema:
           type: object
           properties:
             status:
               type: string
-              example: success
+              example: "success"
             data:
               type: object
               properties:
                  test_id:
                    type: string
+                   example: "550e8400-e29b-41d4-a716-446655440000"
                  questions:
                    type: array
+                   items:
+                     type: object
       400:
-        description: Validation Error
+        description: "Validation Error (e.g., missing title, no file/description provided)"
       500:
-        description: Internal Server Error
+        description: "Internal Server Error during AI generation"
     """
     try:
         # Check params
@@ -155,18 +160,32 @@ def get_class_tests(class_id):
     ---
     tags:
       - AI Exam Generation
+    summary: "Fetch all tests available for a class"
+    description: "Returns a list of tests generated for a specific class, including metadata and students' attempt counts if student_id is provided."
     parameters:
       - name: class_id
         in: path
         type: integer
         required: true
+        description: "ID of the class"
       - name: student_id
         in: query
         type: integer
         required: false
+        description: "Optional. ID of the student to check attempt status."
     responses:
       200:
-        description: List of tests
+        description: "List of tests retrieved successfully"
+        schema:
+          type: object
+          properties:
+            status:
+              type: string
+              example: "success"
+            data:
+              type: array
+              items:
+                type: object
     """
     try:
         service = get_question_service()
@@ -183,18 +202,26 @@ def get_test_detail(test_id):
     ---
     tags:
       - AI Exam Generation
+    summary: "Fetch test details and its questions"
+    description: "Returns full metadata and the list of questions for a specific test. Requires student_id to verify if they are allowed to take the test."
     parameters:
       - name: test_id
         in: path
         type: string
         required: true
+        description: "UUID of the Test"
       - name: student_id
         in: query
         type: integer
         required: false
+        description: "Optional. ID of the student to verify access."
     responses:
       200:
-        description: Test details and questions
+        description: "Test details and questions retrieved successfully"
+      403:
+        description: "Permission Denied (e.g., student has no more attempts)"
+      404:
+        description: "Test not found"
     """
     try:
         service = get_question_service()

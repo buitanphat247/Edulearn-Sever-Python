@@ -1,28 +1,19 @@
-# OpenAI API client for OCR and table processing
-openai>=1.0.0
-
-# Flask web framework
+# --- Core Framework ---
 flask>=2.0.0
 python-dotenv>=0.19.0
 flask-cors>=4.0.0
 flask-socketio>=5.3.0
 eventlet>=0.33.0
+gunicorn>=20.1.0
 
-# Flask extensions
-flask-jsonpify
-flask-sqlalchemy
-flask-restful
-
-# Database drivers
+# --- Database & Persistence ---
+flask-sqlalchemy>=3.0.0
 mysql-connector-python>=8.0.0
 pymysql>=1.0.0
+sqlalchemy>=2.0.0
 
-# Swagger/OpenAPI documentation
-flasgger>=0.9.7.1
-
-# AI & Document Processing
-pypdf>=3.0.0
-python-docx>=0.8.11
+# --- AI & LlamaIndex Stack ---
+openai>=1.0.0
 tiktoken>=0.5.0
 llama-index>=0.11.0
 llama-index-core
@@ -33,9 +24,22 @@ llama-index-embeddings-huggingface
 llama-index-vector-stores-chroma
 chromadb>=0.4.0
 sentence-transformers
+torch>=2.0.0
+transformers>=4.30.0
 
-# Cloudflare R2 (S3-compatible) storage
+# --- Document Processing ---
+pypdf>=3.0.0
+python-docx>=0.8.11
+requests>=2.28.0
+
+# --- API Documentation ---
+flasgger>=0.9.7.1
+
+# --- Cloud Storage ---
 boto3>=1.26.0
 
-# HTTP requests for API calls
-requests>=2.28.0
+# --- Utilities ---
+flask-jsonpify
+flask-restful
+markupsafe>=2.0.0
+werkzeug>=2.0.0
