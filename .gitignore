@@ -6,3 +6,5 @@ uploads/
 output_data/
 latex_cache.json
 .DS_Store
+storage_chroma/
+temp_processing/

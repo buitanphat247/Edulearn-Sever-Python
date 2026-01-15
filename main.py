@@ -4,19 +4,22 @@ from dotenv import load_dotenv
 import sys
 from flasgger import Swagger
 from flask_cors import CORS
+from flask_socketio import SocketIO
 
 load_dotenv()
 
 app = Flask(__name__, static_folder='static', static_url_path='/static')
 
 # Cấu hình CORS để tránh lỗi CORS
-# Cho phép tất cả origins trong development, có thể config qua env cho production
 cors_origins = os.getenv('CORS_ORIGINS', '*').split(',') if os.getenv('CORS_ORIGINS') else ['*']
 CORS(app, 
      origins=cors_origins,
      methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
      allow_headers=['Content-Type', 'Authorization'],
      supports_credentials=True)
+
+# Initialize SocketIO
+socketio = SocketIO(app, cors_allowed_origins=cors_origins)
 
 swagger_config = {
     "headers": [],
@@ -53,17 +56,24 @@ swagger = Swagger(app, config=swagger_config, template=swagger_template)
 
 from src.controllers.router import register_routes
 from src.config.database import init_db
+from src.controllers.exam_generation.exam_socket_controller import register_socket_events
+
 # Import models để SQLAlchemy nhận diện (phải import trước khi init_db)
 from src.models import AIWritingHistory
 
-# Initialize Database - init_db sẽ tự set config và tự động tạo tables
-# Không set config ở đây để tránh conflict với init_db
+# Initialize Database
 init_db(app)
 
+# Register routes
 register_routes(app)
+
+# Register Socket Events
+register_socket_events(socketio)
 
 if __name__ == '__main__':
     PORT = int(os.getenv("PORT", 5000))
     DEBUG = os.getenv("DEBUG", "false").lower() == "true"
     print(f"Starting Flask server on port {PORT}, DEBUG={DEBUG}")
-    app.run(host='0.0.0.0', port=PORT, debug=DEBUG)
+    
+    # Run with SocketIO
+    socketio.run(app, host='0.0.0.0', port=PORT, debug=DEBUG)
