@@ -296,12 +296,13 @@ def process_document(file_path_in, folder_path_out):
 
 @digital_document_controller.route('/process', methods=['POST'])
 def process_document_upload():
-    """Xử lý số hóa tài liệu Word
+    """
+    Digitize a Word document into JSON and LaTeX
     ---
     tags:
-      - Digital Document
-    summary: Upload và số hóa tài liệu Word
-    description: Nhận file Word, xử lý số hóa và trả về JSON và HTML viewer
+      - Digital Document Processing
+    summary: "High-fidelity Word Digitization"
+    description: "Converts Word (.docx) documents into structured JSON data. Handles text extraction, formula OCR, table parsing, and media management (uploading images to R2)."
     consumes:
       - multipart/form-data
     parameters:
@@ -309,10 +310,10 @@ def process_document_upload():
         name: file
         type: file
         required: true
-        description: File Word cần số hóa (.doc hoặc .docx)
+        description: "Word document to digitize"
     responses:
       200:
-        description: Xử lý thành công
+        description: "Successfully processed document"
         schema:
           type: object
           properties:
@@ -321,54 +322,23 @@ def process_document_upload():
               example: 200
             message:
               type: string
-              example: Document processed successfully
+              example: "Document processed successfully"
             data:
               type: object
               properties:
                 questions_data:
                   type: array
-                  description: Dữ liệu câu hỏi từ questions.json
-                  example: []
+                  description: "Structured section and question data"
                 math_data:
                   type: object
-                  description: Dữ liệu toán học từ thư mục maths
-                  example: {}
+                  description: "Extracted mathematical formulas"
                 pictures:
                   type: array
-                  description: Danh sách LaTeX code của hình ảnh (nếu có)
-                  items:
-                    type: string
-                  example: ['\\includegraphics[max width=\\linewidth,keepaspectratio]{media/image31.jpeg}']
+                  description: "List of uploaded image URLs"
       400:
-        description: Lỗi validation
-        schema:
-          type: object
-          properties:
-            status:
-              type: integer
-              example: 400
-            message:
-              type: string
-              example: No file provided
-            data:
-              type: object
-              nullable: true
-              example: null
+        description: "Invalid file type or missing payload"
       500:
-        description: Lỗi server
-        schema:
-          type: object
-          properties:
-            status:
-              type: integer
-              example: 500
-            message:
-              type: string
-              example: Error processing document
-            data:
-              type: object
-              nullable: true
-              example: null
+        description: "Digitization pipeline failure"
     """
     try:
         if 'file' not in request.files:

@@ -10,58 +10,8 @@ class ExamService:
         self._ensure_tables()
 
     def _ensure_tables(self):
-        queries = [
-            """
-            CREATE TABLE IF NOT EXISTS RagTestAttempt (
-                id VARCHAR(100) PRIMARY KEY,
-                rag_test_id VARCHAR(100) NOT NULL,
-                class_id BIGINT NOT NULL,
-                student_id BIGINT NOT NULL,
-                mode ENUM('practice','official') NOT NULL,
-                status ENUM('in_progress','submitted','expired') DEFAULT 'in_progress',
-                started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                expires_at TIMESTAMP NULL,
-                last_heartbeat_at TIMESTAMP NULL,
-                answers JSON,
-                score FLOAT DEFAULT 0,
-                submitted_at TIMESTAMP NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (rag_test_id) REFERENCES RagTest(id) ON DELETE CASCADE
-            )
-            """,
-            """
-            CREATE TABLE IF NOT EXISTS RagTestStatus (
-                id VARCHAR(100) PRIMARY KEY,
-                rag_test_id VARCHAR(100) NOT NULL,
-                student_id BIGINT NOT NULL,
-                attempt_count INT DEFAULT 0,
-                last_attempt_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE KEY unique_progress (rag_test_id, student_id),
-                FOREIGN KEY (rag_test_id) REFERENCES RagTest(id) ON DELETE CASCADE
-            )
-            """,
-            """
-            CREATE TABLE IF NOT EXISTS RagTestAttemptSecurity (
-                id BIGINT AUTO_INCREMENT PRIMARY KEY,
-                attempt_id VARCHAR(100) NOT NULL,
-                reload_count INT DEFAULT 0,
-                tab_hidden_count INT DEFAULT 0,
-                disconnect_count INT DEFAULT 0,
-                last_event VARCHAR(50),
-                violation_logs JSON,
-                suspicious_level INT DEFAULT 0,
-                is_terminated BOOLEAN DEFAULT FALSE,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP NULL ON UPDATE CURRENT_TIMESTAMP,
-                FOREIGN KEY (attempt_id) REFERENCES RagTestAttempt(id) ON DELETE CASCADE
-            )
-            """
-        ]
-        for q in queries:
-            try:
-                self.db_service.execute_query(q)
-            except Exception as e:
-                print(f"Exam Schema Error: {e}")
+        # Tables are now managed centrally in src/config/database.py using TABLE_SCHEMAS
+        pass
 
     # --- Core Logic ---
 
@@ -78,7 +28,7 @@ class ExamService:
         """Bắt đầu hoặc Tiếp tục một lượt làm bài"""
         
         # 0. Check for existing 'in_progress' attempt to resume
-        resume_query = "SELECT id, started_at, expires_at, answers FROM RagTestAttempt WHERE rag_test_id = %s AND student_id = %s AND status = 'in_progress'"
+        resume_query = "SELECT id, started_at, expires_at, answers FROM ragtestattempt WHERE rag_test_id = %s AND student_id = %s AND status = 'in_progress'"
         resume_res = self.db_service.execute_query(resume_query, (rag_test_id, student_id))
         
         if resume_res.get("rows"):
@@ -86,7 +36,7 @@ class ExamService:
             attempt_id, started_at, expires_at, answers_json = row
 
             # Fetch violation count
-            sec_q = "SELECT violation_logs FROM RagTestAttemptSecurity WHERE attempt_id = %s"
+            sec_q = "SELECT violation_logs FROM ragtestattemptsecurity WHERE attempt_id = %s"
             sec_res = self.db_service.execute_query(sec_q, (attempt_id,))
             violation_count = 0
             if sec_res.get("rows"):
@@ -110,7 +60,7 @@ class ExamService:
                 self._force_submit_expired(attempt_id)
 
         # 1. Check if test exists and get details
-        test_query = "SELECT duration_minutes, max_attempts FROM RagTest WHERE id = %s"
+        test_query = "SELECT duration_minutes, max_attempts FROM ragtest WHERE id = %s"
         test_res = self.db_service.execute_query(test_query, (rag_test_id,))
         if not test_res.get("rows"):
             raise ValueError("Test not found")
@@ -118,8 +68,8 @@ class ExamService:
         duration = test_res["rows"][0][0]
         max_attempts = test_res["rows"][0][1]
         
-        # 2. Check Attempt Count (RagTestStatus)
-        status_query = "SELECT attempt_count FROM RagTestStatus WHERE rag_test_id = %s AND student_id = %s"
+        # 2. Check Attempt Count (ragteststatus)
+        status_query = "SELECT attempt_count FROM ragteststatus WHERE rag_test_id = %s AND student_id = %s"
         status_res = self.db_service.execute_query(status_query, (rag_test_id, student_id))
         
         current_count = 0
@@ -131,7 +81,7 @@ class ExamService:
 
         # Update or Insert Status (Mark one attempt as 'started')
         upsert_query = """
-            INSERT INTO RagTestStatus (id, rag_test_id, student_id, attempt_count, last_attempt_at)
+            INSERT INTO ragteststatus (id, rag_test_id, student_id, attempt_count, last_attempt_at)
             VALUES (%s, %s, %s, 1, NOW())
             ON DUPLICATE KEY UPDATE attempt_count = attempt_count + 1, last_attempt_at = NOW()
         """
@@ -144,7 +94,7 @@ class ExamService:
         attempt_id = str(uuid.uuid4())
         
         query = """
-            INSERT INTO RagTestAttempt 
+            INSERT INTO ragtestattempt 
             (id, rag_test_id, class_id, student_id, mode, status, started_at, expires_at)
             VALUES (%s, %s, %s, %s, %s, 'in_progress', %s, %s)
         """
@@ -153,7 +103,7 @@ class ExamService:
         ))
 
         # 4. Init Security Record
-        sec_query = "INSERT INTO RagTestAttemptSecurity (attempt_id) VALUES (%s)"
+        sec_query = "INSERT INTO ragtestattemptsecurity (attempt_id) VALUES (%s)"
         self.db_service.execute_query(sec_query, (attempt_id,))
 
         return {
@@ -169,7 +119,7 @@ class ExamService:
         """Nộp bài (Submit)"""
         
         # 1. Get Attempt Info
-        get_q = "SELECT rag_test_id, status FROM RagTestAttempt WHERE id = %s AND student_id = %s"
+        get_q = "SELECT rag_test_id, status FROM ragtestattempt WHERE id = %s AND student_id = %s"
         res = self.db_service.execute_query(get_q, (attempt_id, student_id))
         if not res.get("rows"):
             raise ValueError("Attempt not found or invalid user")
@@ -183,8 +133,8 @@ class ExamService:
         # Fetch correct answers
         q_sql = """
             SELECT q.id, q.correct_answer, tq.score 
-            FROM RagQuestion q
-            JOIN RagTestQuestion tq ON q.id = tq.question_id
+            FROM ragquestion q
+            JOIN ragtestquestion tq ON q.id = tq.question_id
             WHERE tq.rag_test_id = %s
         """
         q_res = self.db_service.execute_query(q_sql, (rag_test_id,))
@@ -203,7 +153,7 @@ class ExamService:
 
         # 3. Update Attempt
         update_q = """
-            UPDATE RagTestAttempt 
+            UPDATE ragtestattempt 
             SET status = 'submitted', submitted_at = %s, answers = %s, score = %s
             WHERE id = %s
         """
@@ -222,11 +172,11 @@ class ExamService:
         event_type: 'reload', 'tab_hidden', 'disconnect', etc.
         """
         # 1. Get current security record
-        get_sec = "SELECT id, reload_count, tab_hidden_count, disconnect_count, violation_logs FROM RagTestAttemptSecurity WHERE attempt_id = %s"
+        get_sec = "SELECT id, reload_count, tab_hidden_count, disconnect_count, violation_logs FROM ragtestattemptsecurity WHERE attempt_id = %s"
         res = self.db_service.execute_query(get_sec, (attempt_id,))
         if not res.get("rows"):
              # Create if missing (sanity check)
-             self.db_service.execute_query("INSERT INTO RagTestAttemptSecurity (attempt_id, violation_logs) VALUES (%s, '[]')", (attempt_id,))
+             self.db_service.execute_query("INSERT INTO ragtestattemptsecurity (attempt_id, violation_logs) VALUES (%s, '[]')", (attempt_id,))
              res = self.db_service.execute_query(get_sec, (attempt_id,))
         
         row = res["rows"][0]
@@ -267,7 +217,7 @@ class ExamService:
              current_logs = current_logs[-200:]
              
         sql = f"""
-            UPDATE RagTestAttemptSecurity 
+            UPDATE ragtestattemptsecurity 
             SET {update_field} last_event = %s, violation_logs = %s, updated_at = %s
             WHERE id = %s
         """
@@ -295,7 +245,7 @@ class ExamService:
 
     def update_heartbeat(self, attempt_id: str) -> Dict:
         """Cập nhật nhịp tim và kiểm tra thời gian làm bài"""
-        query = "SELECT expires_at, status FROM RagTestAttempt WHERE id = %s"
+        query = "SELECT expires_at, status FROM ragtestattempt WHERE id = %s"
         res = self.db_service.execute_query(query, (attempt_id,))
         if not res.get("rows"):
             return {"status": "error", "message": "Attempt not found"}
@@ -309,7 +259,7 @@ class ExamService:
         remaining_seconds = max(0, int((expires_at - now).total_seconds()))
 
         # Update heartbeat timestamp
-        update_q = "UPDATE RagTestAttempt SET last_heartbeat_at = %s WHERE id = %s"
+        update_q = "UPDATE ragtestattempt SET last_heartbeat_at = %s WHERE id = %s"
         self.db_service.execute_query(update_q, (now, attempt_id))
 
         if is_expired:
@@ -324,7 +274,7 @@ class ExamService:
 
     def get_remaining_time(self, attempt_id: str) -> Dict:
         """Lấy thời gian còn lại chính xác từ server"""
-        query = "SELECT expires_at, status FROM RagTestAttempt WHERE id = %s"
+        query = "SELECT expires_at, status FROM ragtestattempt WHERE id = %s"
         res = self.db_service.execute_query(query, (attempt_id,))
         if not res.get("rows"):
             return {"status": "error", "message": "Attempt not found"}
@@ -342,13 +292,13 @@ class ExamService:
     def _force_submit_expired(self, attempt_id: str):
         """Tự động nộp bài khi hết giờ"""
         # Mark as expired
-        update_q = "UPDATE RagTestAttempt SET status = 'expired', submitted_at = NOW() WHERE id = %s"
+        update_q = "UPDATE ragtestattempt SET status = 'expired', submitted_at = NOW() WHERE id = %s"
         self.db_service.execute_query(update_q, (attempt_id,))
 
     def save_answers(self, attempt_id: str, answers: Dict) -> Dict:
         """Lưu lại danh sách câu trả lời nháp"""
         try:
-            query = "UPDATE RagTestAttempt SET answers = %s WHERE id = %s AND status = 'in_progress'"
+            query = "UPDATE ragtestattempt SET answers = %s WHERE id = %s AND status = 'in_progress'"
             self.db_service.execute_query(query, (json.dumps(answers), attempt_id))
             return {"status": "success"}
         except Exception as e:
@@ -357,7 +307,7 @@ class ExamService:
     def auto_submit_expired_attempts(self):
         """Quét và tự động nộp tất cả bài thi hết hạn (Dùng cho Cron/Worker)"""
         query = """
-            UPDATE RagTestAttempt 
+            UPDATE ragtestattempt 
             SET status = 'expired', submitted_at = NOW()
             WHERE status = 'in_progress' AND expires_at < NOW()
         """
@@ -370,10 +320,10 @@ class ExamService:
             SELECT a.id, a.student_id, u.fullname, a.status, a.score, a.started_at, a.submitted_at, 
                    s.reload_count, s.tab_hidden_count, s.disconnect_count, s.violation_logs,
                    a.answers, ts.attempt_count
-            FROM RagTestAttempt a
+            FROM ragtestattempt a
             JOIN users u ON a.student_id = u.user_id
-            LEFT JOIN RagTestAttemptSecurity s ON a.id = s.attempt_id
-            LEFT JOIN RagTestStatus ts ON a.rag_test_id = ts.rag_test_id AND a.student_id = ts.student_id
+            LEFT JOIN ragtestattemptsecurity s ON a.id = s.attempt_id
+            LEFT JOIN ragteststatus ts ON a.rag_test_id = ts.rag_test_id AND a.student_id = ts.student_id
             WHERE a.rag_test_id = %s
             ORDER BY a.started_at DESC
         """

@@ -14,12 +14,13 @@ writing_chat_bot_controller = Blueprint('writing_chat_bot_controller', __name__)
 
 @writing_chat_bot_controller.route('/generate', methods=['POST'])
 def generate_writing_content():
-    """Tạo nội dung luyện writing (dialogue) bằng AI
+    """
+    Generate AI-powered dialogue for writing practice
     ---
     tags:
-      - Writing Chat Bot
-    summary: Tạo đoạn hội thoại luyện writing bằng AI
-    description: Nhận JSON config và tạo đoạn hội thoại phù hợp cho luyện writing
+      - Writing AI Tutor
+    summary: "Create Interactive Writing Exercise"
+    description: "Initializes a writing tutoring session by generating a structured dialogue, story, or essay based on user configuration. Supports multiple languages (English/Vietnamese) and difficulty levels (1-5)."
     consumes:
       - application/json
     parameters:
@@ -38,168 +39,49 @@ def generate_writing_content():
           properties:
             user_id:
               type: integer
-              description: ID của người dùng (liên kết với bảng users)
-              example: 1
+              description: "ID of the student"
             language:
               type: string
-              description: Ngôn ngữ
-              enum:
-                - English
-                - Vietnamese
-              default: English
-              example: English
+              enum: ['English', 'Vietnamese']
+              default: 'English'
             topic:
               type: string
-              description: Chủ đề
-              enum:
-                - greetings
-                - self_introduction
-                - daily_conversation
-                - weather_talk
-                - family_friends
-                - weekend_plans
-                - shopping
-                - restaurant
-                - transportation
-                - asking_directions
-                - hotel_booking
-                - doctor_visit
-                - phone_calls
-                - making_friends
-                - invitations
-                - hobbies_sports
-                - entertainment
-                - food_preferences
-                - small_talk
-                - travel_planning
-                - airport_customs
-                - emergencies
-                - expressing_opinions
-                - complaining_suggesting
-                - cultural_differences
-                - problem_solving
-              default: phone_calls
-              example: phone_calls
+              description: "Target topic for conversation"
             difficulty:
               type: integer
-              description: Độ khó
-              enum:
-                - 1
-                - 2
-                - 3
-                - 4
-                - 5
+              description: "CEFR-like level (1=Beginner, 5=Advanced)"
               minimum: 1
               maximum: 5
-              default: 2
-              example: 2
             customTopic:
               type: boolean
-              description: Có dùng chủ đề tùy chỉnh không
-              example: false
+              description: "Enable free-text topic prompt"
             customTopicText:
               type: string
-              description: Chủ đề tùy chỉnh (nếu customTopic = true)
-              example: ""
             contentType:
               type: string
-              description: Loại nội dung
-              enum:
-                - DIALOGUE
-                - ESSAY
-                - STORY
-              default: DIALOGUE
-              example: DIALOGUE
+              enum: ['DIALOGUE', 'ESSAY', 'STORY']
             learningPurpose:
               type: string
-              description: Mục đích học
-              enum:
-                - COMMUNICATION
-                - GRAMMAR
-                - VOCABULARY
-              default: COMMUNICATION
-              example: COMMUNICATION
-            mode:
-              type: string
-              description: Chế độ
-              enum:
-                - AI_GENERATED
-              default: AI_GENERATED
-              example: AI_GENERATED
+              enum: ['COMMUNICATION', 'GRAMMAR', 'VOCABULARY']
     responses:
       200:
-        description: Tạo thành công
+        description: "Exercise generated successfully"
         schema:
           type: object
           properties:
             id:
               type: string
-              description: UUID của exercise
-              example: "45c76337-40ef-4349-9387-37b7b35e4059"
-            language:
-              type: string
-              example: English
-            topic:
-              type: string
-              example: phone_calls
-            difficulty:
-              type: integer
-              example: 2
-            vietnameseSentences:
-              type: array
-              description: Mảng các câu hội thoại (nếu language là Vietnamese)
-              items:
-                type: string
-              example: ["Thuê bao: Xin chào, tôi gọi từ số 090...", "Lễ tân: Chào anh/chị, chị Hoa hiện không có ở bàn làm việc..."]
+              description: "Exercise UUID"
             englishSentences:
               type: array
-              description: Mảng các câu hội thoại (nếu language là English)
               items:
                 type: string
-              example: ["A: Hello, is this ABC Company?", "B: Yes, this is Mai speaking. How can I help you?"]
             totalSentences:
               type: integer
-              example: 11
-            practiceType:
-              type: string
-              nullable: true
-              example: null
-            contentType:
-              type: string
-              example: DIALOGUE
-            userPoints:
-              type: number
-              example: 0.0
       400:
-        description: Lỗi validation
-        schema:
-          type: object
-          properties:
-            status:
-              type: integer
-              example: 400
-            message:
-              type: string
-              example: Missing required fields
-            data:
-              type: object
-              nullable: true
-              example: null
+        description: "Invalid configuration payload"
       500:
-        description: Lỗi server hoặc AI service
-        schema:
-          type: object
-          properties:
-            status:
-              type: integer
-              example: 500
-            message:
-              type: string
-              example: Error generating dialogue
-            data:
-              type: object
-              nullable: true
-              example: null
+        description: "AI Service error during generation"
     """
     try:
         # Lấy JSON từ request
@@ -307,56 +189,31 @@ def generate_writing_content():
 
 @writing_chat_bot_controller.route('/topics', methods=['GET'])
 def get_topics_list():
-    """Lấy danh sách topics theo category
+    """
+    Retrieve writing practice topics by category
     ---
     tags:
-      - Writing Chat Bot
-    summary: Lấy danh sách topics để luyện writing
-    description: Trả về danh sách topics theo category (general, ielts, work) hoặc tất cả
+      - Writing AI Tutor
+    summary: "Get Available Topics"
+    description: "Returns a categorized list of practice topics (General, IELTS, Work). Useful for the initial student selection screen. Security: Read-only access."
     parameters:
       - in: query
         name: category
         type: string
         required: false
-        description: Category name (general, ielts, work). Nếu không có thì trả về tất cả
+        description: "Filter by category (general, ielts, work)"
         enum: [general, ielts, work]
-        example: general
     responses:
       200:
-        description: Lấy danh sách topics thành công
+        description: "Topics retrieved successfully"
         schema:
           type: object
           properties:
             status:
               type: string
-              example: success
-            category:
-              type: string
-              example: general
+              example: "success"
             data:
               type: object
-              description: Danh sách topics theo nhóm
-              example:
-                "🌱 Cơ bản":
-                  - value: greetings
-                    label: Chào hỏi và làm quen
-                  - value: self_introduction
-                    label: Giới thiệu bản thân
-      400:
-        description: Category không hợp lệ
-        schema:
-          type: object
-          properties:
-            status:
-              type: string
-              example: error
-            message:
-              type: string
-              example: Invalid category
-            data:
-              type: object
-              nullable: true
-              example: null
     """
     try:
         category = request.args.get('category', None)
@@ -391,21 +248,19 @@ def get_topics_list():
 
 @writing_chat_bot_controller.route('/history/<int:history_id>/index', methods=['PUT'])
 def update_history_index(history_id):
-    """Cập nhật current_index của writing history
+    """
+    Update the current progress index of a writing session
     ---
     tags:
-      - Writing Chat Bot
-    summary: Cập nhật index hiện tại (đang làm tới câu nào)
-    description: Cập nhật current_index để theo dõi tiến độ làm bài
-    consumes:
-      - application/json
+      - Writing AI Tutor
+    summary: "Save Session Progress"
+    description: "Saves the current sentence index for a specific practice session. Allows students to resume their practice later. Security: Validates session existence before update."
     parameters:
       - in: path
         name: history_id
         type: integer
         required: true
-        description: ID của writing history
-        example: 1
+        description: "ID of the practice session"
       - in: body
         name: body
         required: true
@@ -416,75 +271,12 @@ def update_history_index(history_id):
           properties:
             current_index:
               type: integer
-              description: Index mới (sentence index hiện tại, bắt đầu từ 0)
-              minimum: 0
-              example: 5
+              description: "New progress index (0..N)"
     responses:
       200:
-        description: Cập nhật thành công
-        schema:
-          type: object
-          properties:
-            status:
-              type: integer
-              example: 200
-            message:
-              type: string
-              example: Index updated successfully
-            data:
-              type: object
-              properties:
-                history_id:
-                  type: integer
-                  example: 1
-                current_index:
-                  type: integer
-                  example: 5
-      400:
-        description: Lỗi validation
-        schema:
-          type: object
-          properties:
-            status:
-              type: integer
-              example: 400
-            message:
-              type: string
-              example: Index must be >= 0
-            data:
-              type: object
-              nullable: true
-              example: null
+        description: "Progress updated successfully"
       404:
-        description: History không tồn tại
-        schema:
-          type: object
-          properties:
-            status:
-              type: integer
-              example: 404
-            message:
-              type: string
-              example: Writing history not found
-            data:
-              type: object
-              nullable: true
-              example: null
-      500:
-        description: Lỗi server
-        schema:
-          type: object
-          properties:
-            status:
-              type: integer
-              example: 500
-            message:
-              type: string
-              example: Error updating index
-            data:
-              type: object
-              nullable: true
-              example: null
+        description: "Practice session not found"
     """
     try:
         body = request.get_json()
@@ -548,82 +340,24 @@ def update_history_index(history_id):
 
 @writing_chat_bot_controller.route('/history/<int:history_id>', methods=['GET'])
 def get_history_by_id(history_id):
-    """Lấy writing history theo ID
+    """
+    Retrieve writing practice session details
     ---
     tags:
-      - Writing Chat Bot
-    summary: Lấy thông tin writing history theo ID
-    description: Trả về toàn bộ thông tin của một writing history
+      - Writing AI Tutor
+    summary: "Get Session Details"
+    description: "Returns the full content (sentences, topic, difficulty) and progress of a specific practice session."
     parameters:
       - in: path
         name: history_id
         type: integer
         required: true
-        description: ID của writing history
-        example: 1
+        description: "ID of the practice session"
     responses:
       200:
-        description: Lấy thành công
-        schema:
-          type: object
-          properties:
-            status:
-              type: integer
-              example: 200
-            message:
-              type: string
-              example: History retrieved successfully
-            data:
-              type: object
-              properties:
-                id:
-                  type: integer
-                  example: 1
-                user_id:
-                  type: integer
-                  example: 1
-                data:
-                  type: object
-                  description: JSON data từ AI (nội dung practice)
-                current_index:
-                  type: integer
-                  example: 5
-                created_at:
-                  type: string
-                  example: "2024-01-01T10:00:00"
-                updated_at:
-                  type: string
-                  example: "2024-01-01T10:30:00"
+        description: "Session details retrieved"
       404:
-        description: History không tồn tại
-        schema:
-          type: object
-          properties:
-            status:
-              type: integer
-              example: 404
-            message:
-              type: string
-              example: Writing history not found
-            data:
-              type: object
-              nullable: true
-              example: null
-      500:
-        description: Lỗi server
-        schema:
-          type: object
-          properties:
-            status:
-              type: integer
-              example: 500
-            message:
-              type: string
-              example: Error retrieving history
-            data:
-              type: object
-              nullable: true
-              example: null
+        description: "Session not found"
     """
     try:
         history, error = get_writing_history(history_id)
@@ -651,109 +385,31 @@ def get_history_by_id(history_id):
 
 @writing_chat_bot_controller.route('/history', methods=['GET'])
 def get_user_histories():
-    """Lấy danh sách writing histories của user
+    """
+    Get user's writing practice history
     ---
     tags:
-      - Writing Chat Bot
-    summary: Lấy danh sách writing histories của user
-    description: Trả về danh sách lịch sử tạo nội dung writing của user với pagination
+      - Writing AI Tutor
+    summary: "List Practice History"
+    description: "Returns a paginated list of all writing practice sessions for a specific user. Supports sorting and page limits."
     parameters:
       - in: query
         name: user_id
         type: integer
         required: true
-        description: ID của user
-        example: 1
       - in: query
         name: limit
         type: integer
-        required: false
-        description: Số lượng items mỗi trang (mặc định 10)
         default: 10
-        example: 10
       - in: query
         name: page
         type: integer
-        required: false
-        description: Số trang (bắt đầu từ 1)
         default: 1
-        example: 1
-      - in: query
-        name: order_by
-        type: string
-        required: false
-        description: Field để sort (created_at, updated_at)
-        enum: [created_at, updated_at]
-        default: created_at
-        example: created_at
-      - in: query
-        name: order_desc
-        type: boolean
-        required: false
-        description: True = DESC, False = ASC
-        default: true
-        example: true
     responses:
       200:
-        description: Lấy thành công
-        schema:
-          type: object
-          properties:
-            status:
-              type: integer
-              example: 200
-            message:
-              type: string
-              example: Histories retrieved successfully
-            data:
-              type: object
-              properties:
-                histories:
-                  type: array
-                  items:
-                    type: object
-                total:
-                  type: integer
-                  example: 100
-                limit:
-                  type: integer
-                  example: 10
-                page:
-                  type: integer
-                  example: 1
-                total_pages:
-                  type: integer
-                  example: 10
+        description: "History list retrieved"
       400:
-        description: Lỗi validation
-        schema:
-          type: object
-          properties:
-            status:
-              type: integer
-              example: 400
-            message:
-              type: string
-              example: user_id is required
-            data:
-              type: object
-              nullable: true
-              example: null
-      500:
-        description: Lỗi server
-        schema:
-          type: object
-          properties:
-            status:
-              type: integer
-              example: 500
-            message:
-              type: string
-              example: Error retrieving histories
-            data:
-              type: object
-              nullable: true
-              example: null
+        description: "Missing user_id"
     """
     try:
         user_id = request.args.get('user_id', type=int)

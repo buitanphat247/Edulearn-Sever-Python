@@ -16,120 +16,81 @@ def get_question_service():
 @question_controller.route('/create_test', methods=['POST'])
 def create_test_endpoint():
     """
-    Create a Full Test (Exam) with scoring and metadata using AI
+    Tạo đề thi AI (RAG) - Luồng tối giản
     ---
     tags:
       - AI Exam Generation
-    summary: "Generate an AI-powered exam from a file or text description"
-    description: "Accepts a document file (PDF/DOCX) or a text description to generate a full set of questions using RAG (Retrieval-Augmented Generation). Supports multiple AI modes."
+    summary: "Tạo đề thi nhanh từ File hoặc Mô tả"
+    description: "Chỉ cần cung cấp file hoặc mô tả nội dung và số lượng câu hỏi. Đề thi sẽ được tạo ở trạng thái nháp (chưa xuất bản) để tùy chỉnh sau."
     consumes:
       - multipart/form-data
     parameters:
       - name: file
         in: formData
         type: file
-        required: false
-        description: "Upload Document (PDF, DOCX). If provided, AI will analyze this file to generate questions."
-      - name: title
-        in: formData
-        type: string
-        required: true
-        description: "Title of the Test (e.g., 'Final Exam: Python Basics')"
+        description: "File tài liệu (PDF, DOCX) để AI phân tích."
       - name: description
         in: formData
         type: string
-        description: "Text description or instruction. Can be used instead of or alongside a file."
-      - name: duration_minutes
-        in: formData
-        type: integer
-        default: 45
-        description: "Time limit for the test in minutes"
-      - name: total_score
-        in: formData
-        type: integer
-        default: 10
-        description: "Maximum score for the entire test"
+        description: "Mô tả nội dung hoặc chủ đề muốn tạo đề (dùng nếu không có file)."
       - name: num_questions
         in: formData
         type: integer
         default: 10
-        description: "Target number of questions to generate"
-      - name: difficulty
+        description: "Số lượng câu hỏi muốn tạo."
+      - name: title
         in: formData
         type: string
-        enum: ['easy', 'medium', 'hard']
-        default: 'medium'
-      - name: mode
-        in: formData
-        type: string
-        enum: ['llamaindex', 'offline', 'online']
-        default: 'llamaindex'
-        description: "Process Mode. 'llamaindex' uses advanced RAG, 'offline' uses local LLM, 'online' uses OpenAI."
+        description: "Tiêu đề đề thi (Tùy chọn, mặc định sẽ tự tạo theo thời gian)."
       - name: class_id
         in: formData
         type: integer
-        required: false
-        description: "Optional. ID of the class to assign this test to."
+        description: "ID lớp học (Tùy chọn)."
+      - name: teacher_id
+        in: formData
+        type: integer
+        required: true
+        description: "ID giáo viên tạo đề (Dùng để phân quyền sở hữu)."
     responses:
       201:
-        description: "Test created successfully"
-        schema:
-          type: object
-          properties:
-            status:
-              type: string
-              example: "success"
-            data:
-              type: object
-              properties:
-                 test_id:
-                   type: string
-                   example: "550e8400-e29b-41d4-a716-446655440000"
-                 questions:
-                   type: array
-                   items:
-                     type: object
-      400:
-        description: "Validation Error (e.g., missing title, no file/description provided)"
-      500:
-        description: "Internal Server Error during AI generation"
+        description: "Đề thi đã được tạo thành công ở dạng nháp."
     """
     try:
-        # Check params
-        file = None
-        if 'file' in request.files and request.files['file'].filename != '':
-             file = request.files['file']
-             
-        title = request.form.get('title')
+        data = request.form
+        file = request.files.get('file')
+        teacher_id = data.get('teacher_id')
+        
+        if not teacher_id:
+            return jsonify({"status": "error", "message": "teacher_id is required"}), 400
+
+        # ... (logic cũ)
+        title = data.get('title')
         if not title:
-            return jsonify({"status": "error", "message": "Title is required"}), 400
+            now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
+            title = f"AI Exam - {now_str}"
             
-        description = request.form.get('description', '')
+        description = data.get('description', '')
         
-        # Validation: Either File or Description must be present
+        # Validation: Phải có ít nhất file hoặc mô tả
         if not file and not description:
-             return jsonify({
-                 "status": "error", 
-                 "message": "Either 'file' or 'description' must be provided."
-             }), 400
+            return jsonify({
+                "status": "error", 
+                "message": "Vui lòng cung cấp 'file' tài liệu hoặc 'description' nội dung để AI làm căn cứ."
+            }), 400
 
+        # 2. Các tham số cấu hình mặc định (Sẽ được chỉnh sửa sau trong advanced editor)
         try:
-            duration_minutes = int(request.form.get('duration_minutes', '45'))
-        except: duration_minutes = 45
-        
-        try:
-            total_score = int(request.form.get('total_score', '10'))
-        except: total_score = 10
-        
-        try:
-            num_questions = int(request.form.get('num_questions', '10'))
+            num_questions = int(data.get('num_questions', '10'))
         except: num_questions = 10
-        
-        difficulty = request.form.get('difficulty', 'medium')
-        mode = request.form.get('mode', 'llamaindex')
+            
+        duration_minutes = int(data.get('duration_minutes', '45'))
+        total_score = int(data.get('total_score', '10'))
+        difficulty = data.get('difficulty', 'medium')
+        mode = data.get('mode', 'llamaindex')
+        max_attempts = int(data.get('max_attempts', '1'))
 
         try:
-            class_id = int(request.form.get('class_id', '0'))
+            class_id = int(data.get('class_id', '0')) if data.get('class_id') else None
         except: class_id = None
 
         service = get_question_service()
@@ -142,7 +103,9 @@ def create_test_endpoint():
             num_questions=num_questions,
             difficulty=difficulty,
             mode=mode,
-            class_id=class_id
+            class_id=class_id,
+            max_attempts=max_attempts,
+            teacher_id=teacher_id # Thêm teacher_id vào đây
         )
 
         return jsonify({"status": "success", "data": result}), 201
@@ -153,44 +116,60 @@ def create_test_endpoint():
         print(f"Error in create_test: {e}")
         return jsonify({"status": "error", "message": f"Internal Error: {str(e)}"}), 500
 
-@question_controller.route('/tests/class/<int:class_id>', methods=['GET'])
-def get_class_tests(class_id):
+@question_controller.route('/tests/class/<int:class_id>/teacher', methods=['GET'])
+def get_teacher_tests_in_class(class_id):
     """
-    Get all RAG Tests for a specific class
+    [Teacher] Lấy tất cả đề thi trong lớp (bao gồm cả nháp)
     ---
     tags:
       - AI Exam Generation
-    summary: "Fetch all tests available for a class"
-    description: "Returns a list of tests generated for a specific class, including metadata and students' attempt counts if student_id is provided."
+    summary: "Lấy danh sách đề thi đầy đủ cho Giáo viên"
+    description: "Trả về tất cả đề thi trong lớp, bao gồm cả các đề chưa xuất bản (is_published=false)."
     parameters:
       - name: class_id
         in: path
         type: integer
         required: true
-        description: "ID of the class"
+    responses:
+      200:
+        description: "Danh sách đề thi"
+    """
+    try:
+        service = get_question_service()
+        tests = service.document_service.get_teacher_tests(class_id)
+        return jsonify({"status": "success", "data": tests}), 200
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@question_controller.route('/tests/class/<int:class_id>/published', methods=['GET'])
+def get_published_class_tests(class_id):
+    """
+    [Student] Lấy danh sách đề thi đã xuất bản cho học sinh
+    ---
+    tags:
+      - AI Exam Generation
+    summary: "Lấy danh sách đề thi đã xuất bản cho Học sinh"
+    description: "Chỉ trả về các đề thi đã xuất bản (is_published=true) trong lớp cụ thể."
+    parameters:
+      - name: class_id
+        in: path
+        type: integer
+        required: true
       - name: student_id
         in: query
         type: integer
-        required: false
-        description: "Optional. ID of the student to check attempt status."
+        required: true
     responses:
       200:
-        description: "List of tests retrieved successfully"
-        schema:
-          type: object
-          properties:
-            status:
-              type: string
-              example: "success"
-            data:
-              type: array
-              items:
-                type: object
+        description: "Danh sách đề thi cho học sinh"
     """
     try:
         service = get_question_service()
         student_id = request.args.get('student_id', type=int)
-        tests = service.document_service.get_tests_by_class(class_id, student_id)
+        if not student_id:
+            return jsonify({"status": "error", "message": "student_id is required"}), 400
+            
+        tests = service.document_service.get_published_tests_by_class(class_id, student_id)
         return jsonify({"status": "success", "data": tests}), 200
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
@@ -260,5 +239,159 @@ def delete_test_endpoint(test_id):
             return jsonify({"status": "success", "message": "Test deleted successfully"}), 200
         else:
             return jsonify({"status": "error", "message": "Failed to delete test"}), 404
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@question_controller.route('/tests/class/<int:class_id>', methods=['DELETE'])
+def delete_class_tests_endpoint(class_id):
+    """
+    Delete ALL RAG Tests belonging to a specific class
+    ---
+    tags:
+      - AI Exam Generation
+    parameters:
+      - name: class_id
+        in: path
+        type: integer
+        required: true
+    responses:
+      200:
+        description: Done
+    """
+    try:
+        service = get_question_service()
+        success = service.document_service.delete_all_tests_by_class(class_id)
+        if success:
+            return jsonify({"status": "success", "message": f"Deleted all AI exams for class {class_id}"}), 200
+        else:
+            return jsonify({"status": "error", "message": "Failed to delete class tests"}), 500
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@question_controller.route('/test/<string:test_id>', methods=['PUT'])
+def update_test_endpoint(test_id):
+    """
+    Update Test metadata
+    ---
+    tags:
+      - AI Exam Generation
+    summary: "Update test title, description, and settings"
+    parameters:
+      - name: test_id
+        in: path
+        type: string
+        required: true
+      - name: body
+        in: body
+        required: true
+        schema:
+          type: object
+          properties:
+            title: {type: string}
+            description: {type: string}
+            duration_minutes: {type: integer}
+            max_attempts: {type: integer}
+    responses:
+      200:
+        description: "Test updated successfully"
+    """
+    try:
+        data = request.json
+        service = get_question_service()
+        success = service.document_service.update_test(test_id, data)
+        if success:
+            return jsonify({"status": "success", "message": "Test updated"}), 200
+        return jsonify({"status": "error", "message": "Update failed"}), 400
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@question_controller.route('/question/<string:question_id>', methods=['PUT'])
+def update_question_endpoint(question_id):
+    """
+    Cập nhật nội dung câu hỏi
+    ---
+    tags:
+      - AI Exam Generation
+    summary: "Cập nhật nội dung và đáp án câu hỏi"
+    description: "Cho phép chỉnh sửa text câu hỏi, 4 phương án lựa chọn, đáp án đúng và lời giải thích."
+    parameters:
+      - name: question_id
+        in: path
+        type: string
+        required: true
+        description: "ID của câu hỏi"
+      - name: body
+        in: body
+        required: true
+        schema:
+          type: object
+          properties:
+            content: {type: string}
+            answer_a: {type: string}
+            answer_b: {type: string}
+            answer_c: {type: string}
+            answer_d: {type: string}
+            correct_answer: {type: string}
+            explanation: {type: string}
+    responses:
+      200:
+        description: "Cập nhật thành công"
+      400:
+        description: "Cập nhật thất bại"
+    """
+    try:
+        data = request.json
+        service = get_question_service()
+        success = service.document_service.update_question(question_id, data)
+        if success:
+            return jsonify({"status": "success", "message": "Question updated"}), 200
+        return jsonify({"status": "error", "message": "Update failed"}), 400
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@question_controller.route('/test/<string:test_id>/publish', methods=['POST'])
+def publish_test_endpoint(test_id):
+    """
+    Xuất bản hoặc Hủy xuất bản đề thi
+    ---
+    tags:
+      - AI Exam Generation
+    summary: "Thay đổi trạng thái công khai của đề thi"
+    parameters:
+      - name: test_id
+        in: path
+        type: string
+        required: true
+      - name: body
+        in: body
+        required: true
+        schema:
+          type: object
+          properties:
+            is_published:
+              type: boolean
+              default: true
+              description: "True để xuất bản cho học sinh thấy, False để đưa về nháp."
+    responses:
+      200:
+        description: "Trình thái xuất bản đã được cập nhật"
+    """
+    try:
+        data = request.json or {}
+        # Mặc định là True nếu không truyền gì (luồng "Xuất bản")
+        is_published = data.get('is_published', True)
+        
+        service = get_question_service()
+        success = service.document_service.update_test(test_id, {"is_published": is_published})
+        
+        if success:
+            status_text = "đã xuất bản" if is_published else "đã đưa về nháp"
+            return jsonify({
+                "status": "success", 
+                "message": f"Đề thi {status_text} thành công",
+                "is_published": is_published
+            }), 200
+            
+        return jsonify({"status": "error", "message": "Không thể cập nhật trạng thái xuất bản"}), 400
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500

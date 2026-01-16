@@ -39,11 +39,12 @@ swagger_config = {
 swagger_template = {
     "swagger": "2.0",
     "info": {
-        "title": "Flask API Documentation",
-        "description": "API documentation với Swagger",
-        "version": "1.0.0",
+        "title": "EduLearn AI Python Server API",
+        "description": "Comprehensive AI services backend for EduLearn. Handles RAG-based Exam Generation, Intelligent Writing Tutoring, and High-fidelity Document Digitization. Documentation covers pipelines, security measures, and implementation guides.",
+        "version": "1.0.1",
         "contact": {
-            "name": "API Support"
+            "name": "EduLearn Development Team",
+            "email": "support@edulearn.example.com"
         }
     },
     "basePath": "/",

@@ -95,7 +95,24 @@ def init_db(app):
                 
                 # Tự động tạo tất cả tables nếu chưa tồn tại
                 try:
+                    # 1. Tạo các bảng từ SQLAlchemy Models (AIWritingHistory, ...)
                     db.create_all()
+                    
+                    # 2. Tạo các bảng từ Raw SQL Schema (ragdocument, ragtest, ...)
+                    from src.config.schema import TABLE_SCHEMAS
+                    from sqlalchemy import text
+                    
+                    print("DEBUG: Executing Raw SQL Schemas...")
+                    # Sử dụng engine trực tiếp để đảm bảo tính nhất quán
+                    with db.engine.connect() as connection:
+                        for query in TABLE_SCHEMAS:
+                            try:
+                                connection.execute(text(query))
+                            except Exception as q_error:
+                                # Log lỗi chi tiết nhưng không dừng cả quá trình
+                                print(f"DEBUG: Warning - Schema query failed: {q_error}")
+                        connection.commit()
+                        
                     print("DEBUG: All database tables created/verified successfully")
                 except Exception as create_error:
                     print(f"DEBUG: Warning - Could not create tables automatically: {create_error}")
@@ -103,7 +120,7 @@ def init_db(app):
                     # Tables có thể đã tồn tại hoặc có vấn đề về permissions
                 
             except Exception as e:
-                print(f"DEBUG: Failed to create engine: {e}")
+                print(f"DEBUG: Failed to create engine/schemas: {e}")
                 import traceback
                 traceback.print_exc()
                 # Không raise exception ở đây để app vẫn có thể chạy

@@ -10,55 +10,41 @@ file_controller = Blueprint('file_controller', __name__)
 
 @file_controller.route('/upload', methods=['POST'])
 def upload_file():
-    """Upload file Word
----
-tags:
-  - File
-summary: Upload file Word (doc, docx)
-description: Upload file Word lên server, chỉ chấp nhận file .doc và .docx
-consumes:
-  - multipart/form-data
-parameters:
-  - in: formData
-    name: file
-    type: file
-    required: true
-    description: File Word cần upload (.doc hoặc .docx)
-responses:
-  200:
-    description: Upload thành công
-    schema:
-      type: object
-      properties:
-        message:
-          type: string
-          example: File uploaded successfully
-        filename:
-          type: string
-          example: document.docx
-        file_path:
-          type: string
-          example: uploads/document.docx
-        file_size:
-          type: integer
-          example: 12345
-  400:
-    description: Lỗi validation
-    schema:
-      type: object
-      properties:
-        error:
-          type: string
-          example: No file provided hoặc File type not allowed
-  500:
-    description: Lỗi server
-    schema:
-      type: object
-      properties:
-        error:
-          type: string
-          example: Error uploading file
-"""
+    """
+    Securely upload a Word document to the server
+    ---
+    tags:
+      - File Management
+    summary: "Upload Document (.doc, .docx)"
+    description: "Uploads a Word file for subsequent processing (Digitization or RAG). Includes security checks for file extensions and utilizes secure_filename formatting."
+    consumes:
+      - multipart/form-data
+    parameters:
+      - in: formData
+        name: file
+        type: file
+        required: true
+        description: "The Word file to upload (Max suggested size 10MB)"
+    responses:
+      200:
+        description: "File uploaded and stored in the 'uploads' directory"
+        schema:
+          type: object
+          properties:
+            message:
+              type: string
+              example: "File uploaded successfully"
+            filename:
+              type: string
+            file_path:
+              type: string
+            file_size:
+              type: integer
+      400:
+        description: "Validation failure (Invalid type or missing file)"
+      500:
+        description: "Internal server error during IO"
+    """
     try:
         if 'file' not in request.files:
             return jsonify({'error': 'No file provided'}), 400

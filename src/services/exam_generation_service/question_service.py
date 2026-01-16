@@ -65,7 +65,8 @@ class QuestionService:
     
     def create_test_from_file(self, file: FileStorage, title: str, description: str, 
                               duration_minutes: int, total_score: int,
-                              num_questions: int = 10, difficulty: str = "medium", mode: str = "llamaindex", class_id: int = None) -> Dict:
+                              num_questions: int = 10, difficulty: str = "medium", mode: str = "llamaindex", 
+                              class_id: int = None, max_attempts: int = 1) -> Dict:
         """Create a full Test from file content or description"""
         
         # Unified Pipeline (LlamaIndex)
@@ -93,12 +94,14 @@ class QuestionService:
             duration_minutes=duration_minutes,
             total_score=total_score,
             mode_backend=backend_mode,
-            class_id=class_id
+            class_id=class_id,
+            max_attempts=max_attempts
         )
 
     def _generate_with_llamaindex(self, file: FileStorage, num_questions: int, 
                                   title: str, description: str, duration_minutes: int, total_score: int,
-                                  difficulty: str = "medium", mode_backend: str = "online", class_id: int = None) -> Dict:
+                                  difficulty: str = "medium", mode_backend: str = "online", 
+                                  class_id: int = None, max_attempts: int = 1) -> Dict:
         """Sử dụng LlamaIndex để generate câu hỏi (RAG + Structured Output)"""
         start_time = datetime.now()
         print(f"\n⚡ [LlamaIndex] Starting generation pipeline...")
@@ -262,7 +265,8 @@ class QuestionService:
                 difficulty=difficulty,
                 duration_minutes=duration_minutes,
                 total_score=total_score,
-                class_id=class_id
+                class_id=class_id,
+                max_attempts=max_attempts
             )
             
             score_per_q = total_score // max(1, len(final_questions))
