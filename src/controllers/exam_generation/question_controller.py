@@ -51,6 +51,27 @@ def create_test_endpoint():
         type: integer
         required: true
         description: "ID giáo viên tạo đề (Dùng để phân quyền sở hữu)."
+      - name: duration_minutes
+        in: formData
+        type: integer
+        default: 45
+        description: "Thời gian làm bài (phút)."
+      - name: total_score
+        in: formData
+        type: integer
+        default: 10
+        description: "Tổng điểm của bài thi."
+      - name: max_attempts
+        in: formData
+        type: integer
+        default: 1
+        description: "Số lượt làm bài tối đa."
+      - name: mode
+        in: formData
+        type: string
+        default: 'llamaindex'
+        enum: ['llamaindex', 'openai']
+        description: "Chế độ tạo câu hỏi (Engine)."
     responses:
       201:
         description: "Đề thi đã được tạo thành công ở dạng nháp."
@@ -133,6 +154,27 @@ def get_teacher_tests_in_class(class_id):
     responses:
       200:
         description: "Danh sách đề thi"
+        schema:
+          type: object
+          properties:
+            status: {type: string, example: "success"}
+            data:
+              type: array
+              items:
+                type: object
+                properties:
+                  id: {type: string}
+                  title: {type: string}
+                  description: {type: string}
+                  num_questions: {type: integer}
+                  duration_minutes: {type: integer}
+                  total_score: {type: integer}
+                  created_at: {type: string}
+                  is_published: {type: boolean}
+                  mode: {type: string}
+                  max_attempts: {type: integer}
+                  end_at: {type: string}
+                  max_violations: {type: integer}
     """
     try:
         service = get_question_service()
@@ -162,6 +204,28 @@ def get_published_class_tests(class_id):
     responses:
       200:
         description: "Danh sách đề thi cho học sinh"
+        schema:
+          type: object
+          properties:
+            status: {type: string, example: "success"}
+            data:
+              type: array
+              items:
+                type: object
+                properties:
+                  id: {type: string}
+                  title: {type: string}
+                  description: {type: string}
+                  num_questions: {type: integer}
+                  duration_minutes: {type: integer}
+                  total_score: {type: integer}
+                  created_at: {type: string}
+                  mode: {type: string}
+                  max_attempts: {type: integer}
+                  end_at: {type: string}
+                  max_violations: {type: integer}
+                  user_attempt_count: {type: integer}
+                  remaining_attempts: {type: integer}
     """
     try:
         service = get_question_service()
@@ -197,6 +261,39 @@ def get_test_detail(test_id):
     responses:
       200:
         description: "Test details and questions retrieved successfully"
+        schema:
+          type: object
+          properties:
+            status:
+              type: string
+              example: "success"
+            data:
+              type: object
+              properties:
+                id: {type: string}
+                title: {type: string}
+                description: {type: string}
+                num_questions: {type: integer}
+                duration_minutes: {type: integer}
+                total_score: {type: integer}
+                created_at: {type: string}
+                is_published: {type: boolean}
+                mode: {type: string}
+                max_attempts: {type: integer}
+                end_at: {type: string, format: date-time}
+                max_violations: {type: integer}
+                questions:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      id: {type: string}
+                      content: {type: string}
+                      options: {type: array, items: {type: string}}
+                      correct_answer: {type: string}
+                      explanation: {type: string}
+                      score: {type: integer}
+                      order: {type: integer}
       403:
         description: "Permission Denied (e.g., student has no more attempts)"
       404:
@@ -241,6 +338,17 @@ def delete_test_endpoint(test_id):
             return jsonify({"status": "error", "message": "Failed to delete test"}), 404
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
+
+@question_controller.route('/tests/class/<int:class_id>', methods=['GET'])
+def get_class_tests_generic(class_id):
+    """
+    Generic endpoint to fetch tests for a class.
+    Routes to teacher or student logic based on query parameters.
+    """
+    student_id = request.args.get('student_id', type=int)
+    if student_id:
+        return get_published_class_tests(class_id)
+    return get_teacher_tests_in_class(class_id)
 
 @question_controller.route('/tests/class/<int:class_id>', methods=['DELETE'])
 def delete_class_tests_endpoint(class_id):
@@ -290,7 +398,11 @@ def update_test_endpoint(test_id):
             title: {type: string}
             description: {type: string}
             duration_minutes: {type: integer}
+            total_score: {type: integer}
             max_attempts: {type: integer}
+            end_at: {type: string, format: date-time, description: "ISO 8601 format (YYYY-MM-DD HH:mm:ss)"}
+            max_violations: {type: integer}
+            is_published: {type: boolean}
     responses:
       200:
         description: "Test updated successfully"

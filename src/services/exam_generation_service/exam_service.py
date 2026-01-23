@@ -60,13 +60,17 @@ class ExamService:
                 self._force_submit_expired(attempt_id)
 
         # 1. Check if test exists and get details
-        test_query = "SELECT duration_minutes, max_attempts FROM ragtest WHERE id = %s"
+        test_query = "SELECT duration_minutes, max_attempts, end_at FROM ragtest WHERE id = %s"
         test_res = self.db_service.execute_query(test_query, (rag_test_id,))
         if not test_res.get("rows"):
             raise ValueError("Test not found")
         
         duration = test_res["rows"][0][0]
         max_attempts = test_res["rows"][0][1]
+        end_at = test_res["rows"][0][2]
+
+        if end_at and datetime.now() > end_at:
+             raise ValueError("Kỳ thi đã kết thúc. Bạn không thể bắt đầu bài làm mới.")
         
         # 2. Check Attempt Count (ragteststatus)
         status_query = "SELECT attempt_count FROM ragteststatus WHERE rag_test_id = %s AND student_id = %s"
@@ -216,9 +220,30 @@ class ExamService:
         if len(current_logs) > 200:
              current_logs = current_logs[-200:]
              
+        # Check against Max Violations
+        viol_q = """
+            SELECT t.max_violations 
+            FROM ragtestattempt a 
+            JOIN ragtest t ON a.rag_test_id = t.id 
+            WHERE a.id = %s
+        """
+        viol_res = self.db_service.execute_query(viol_q, (attempt_id,))
+        max_violations = 3
+        if viol_res.get("rows"):
+             max_violations = viol_res["rows"][0][0] or 3
+
+        # Assuming each of these events counts as 1 violation
+        total_violations = reload_c + tab_c + disconnect_c
+        is_terminated = False
+        
+        if total_violations >= max_violations:
+             is_terminated = True
+             # Force Terminate Attempt
+             self.db_service.execute_query("UPDATE ragtestattempt SET status = 'expired', submitted_at = NOW() WHERE id = %s", (attempt_id,))
+
         sql = f"""
             UPDATE ragtestattemptsecurity 
-            SET {update_field} last_event = %s, violation_logs = %s, updated_at = %s
+            SET {update_field} last_event = %s, violation_logs = %s, is_terminated = %s, updated_at = %s
             WHERE id = %s
         """
         
@@ -228,6 +253,7 @@ class ExamService:
             params.append(new_val)
         params.append(event_type)
         params.append(json.dumps(current_logs))
+        params.append(1 if is_terminated else 0)
         params.append(datetime.now())
         params.append(sec_id)
         
@@ -240,8 +266,12 @@ class ExamService:
                 "tab_hidden": tab_c,
                 "disconnect": disconnect_c,
                 "total_logs": len(current_logs)
-            }
+            },
+            "is_terminated": is_terminated
         }
+        
+    def _ignore_me(self):
+         pass # dummy to match structure for replacement tool
 
     def update_heartbeat(self, attempt_id: str) -> Dict:
         """Cập nhật nhịp tim và kiểm tra thời gian làm bài"""

@@ -43,6 +43,7 @@ TABLE_SCHEMAS = [
     CREATE TABLE IF NOT EXISTS ragtest (
         id VARCHAR(100) PRIMARY KEY,
         class_id BIGINT,
+        teacher_id BIGINT,
         document_id VARCHAR(100) NOT NULL,
         title VARCHAR(255),
         description TEXT,
@@ -51,6 +52,8 @@ TABLE_SCHEMAS = [
         total_score INT DEFAULT 10,
         num_questions INT,
         max_attempts INT DEFAULT 1,
+        end_at TIMESTAMP NULL,
+        max_violations INT DEFAULT 3,
         created_by ENUM('AI','teacher') DEFAULT 'AI',
         is_published BOOLEAN DEFAULT false,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
